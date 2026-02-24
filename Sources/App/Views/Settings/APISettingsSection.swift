@@ -59,14 +59,16 @@ struct LinearSettingsSection: View {
             do {
                 var request = URLRequest(url: URL(string: "https://api.linear.app/graphql")!)
                 request.httpMethod = "POST"
-                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue(token, forHTTPHeaderField: "Authorization")
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.httpBody = #"{"query":"{ viewer { id } }"}"#.data(using: .utf8)
-                let (_, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
                     await MainActor.run { testStatus = .success }
                 } else {
-                    await MainActor.run { testStatus = .failed("HTTP error") }
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    let body = String(data: data, encoding: .utf8) ?? ""
+                    await MainActor.run { testStatus = .failed("HTTP \(code): \(body)") }
                 }
             } catch {
                 await MainActor.run { testStatus = .failed(error.localizedDescription) }
@@ -131,13 +133,24 @@ struct PylonSettingsSection: View {
         testStatus = .testing
         Task {
             do {
-                var request = URLRequest(url: URL(string: "https://api.usepylon.com/issues?limit=1")!)
+                // Pylon /issues requires start_time & end_time; use a 1-day window with limit=1
+                let now = ISO8601DateFormatter().string(from: Date())
+                let yesterday = ISO8601DateFormatter().string(from: Date(timeIntervalSinceNow: -86400))
+                var components = URLComponents(string: "https://api.usepylon.com/issues")!
+                components.queryItems = [
+                    URLQueryItem(name: "start_time", value: yesterday),
+                    URLQueryItem(name: "end_time", value: now),
+                    URLQueryItem(name: "limit", value: "1"),
+                ]
+                var request = URLRequest(url: components.url!)
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                let (_, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
                     await MainActor.run { testStatus = .success }
                 } else {
-                    await MainActor.run { testStatus = .failed("HTTP error") }
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    let body = String(data: data, encoding: .utf8) ?? ""
+                    await MainActor.run { testStatus = .failed("HTTP \(code): \(body)") }
                 }
             } catch {
                 await MainActor.run { testStatus = .failed(error.localizedDescription) }
@@ -149,9 +162,9 @@ struct PylonSettingsSection: View {
 // MARK: - Sync Schedule
 
 struct SyncScheduleSection: View {
+    var syncService: APISyncService
     @AppStorage("api.syncInterval") private var syncIntervalMinutes: Double = 5
-    @AppStorage("api.lastSyncTime") private var lastSyncTime: Double = 0
-    @AppStorage("api.lastSyncError") private var lastSyncError: String = ""
+    @State private var showLog = false
 
     private let syncIntervalOptions: [Double] = [1, 2, 5, 10, 15, 30]
 
@@ -169,26 +182,56 @@ struct SyncScheduleSection: View {
                     NotificationCenter.default.post(name: .apiSyncRequested, object: nil)
                 }
                 .controlSize(.small)
+                .disabled(syncService.isSyncing)
+
+                if syncService.isSyncing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
 
                 Spacer()
 
-                if lastSyncTime > 0 {
-                    let date = Date(timeIntervalSince1970: lastSyncTime)
-                    Text("Last sync: \(date.formatted(.relative(presentation: .named)))")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                Button(showLog ? "Hide Log" : "Show Log") {
+                    showLog.toggle()
                 }
+                .controlSize(.small)
             }
 
-            if !lastSyncError.isEmpty {
+            if let error = syncService.lastError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                         .font(.system(size: 10))
-                    Text(lastSyncError)
+                    Text(error)
                         .font(.system(size: 10))
                         .foregroundStyle(.red)
-                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+
+            if showLog {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            ForEach(Array(syncService.syncLog.enumerated()), id: \.offset) { idx, entry in
+                                Text(entry)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(entry.contains("ERROR") || entry.contains("failed") ? .red : .secondary)
+                                    .textSelection(.enabled)
+                                    .id(idx)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(6)
+                    }
+                    .frame(height: 120)
+                    .background(.black.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .onChange(of: syncService.syncLog.count) {
+                        if let last = syncService.syncLog.indices.last {
+                            proxy.scrollTo(last, anchor: .bottom)
+                        }
+                    }
                 }
             }
         }
@@ -220,9 +263,11 @@ func connectionStatusView(_ status: ConnectionTestStatus) -> some View {
         Label(msg, systemImage: "xmark.circle.fill")
             .font(.system(size: 11))
             .foregroundStyle(.red)
+            .textSelection(.enabled)
     }
 }
 
 extension Notification.Name {
     static let apiSyncRequested = Notification.Name("apiSyncRequested")
+    static let apiSyncCompleted = Notification.Name("apiSyncCompleted")
 }

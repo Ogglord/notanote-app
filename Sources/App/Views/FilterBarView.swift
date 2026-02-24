@@ -3,7 +3,6 @@ import Models
 
 struct FilterBarView: View {
     @Binding var filterMode: FilterMode
-    @Binding var groupMode: GroupMode
     @Binding var sourceFilter: TodoSource?
     var sourceCounts: [TodoSource: Int]
 
@@ -25,22 +24,6 @@ struct FilterBarView: View {
                     sourceFilterButton(source, label: source.displayName, icon: source.iconName)
                 }
                 Spacer()
-            }
-
-            // Group mode dropdown
-            HStack {
-                Text("Group by")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                Picker("Group", selection: $groupMode) {
-                    ForEach(GroupMode.allCases) { mode in
-                        Label(mode.displayName, systemImage: mode.iconName)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 12)

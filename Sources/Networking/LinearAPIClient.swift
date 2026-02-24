@@ -39,7 +39,7 @@ public final class LinearAPIClient: Sendable {
 
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = bodyData
 
@@ -57,7 +57,8 @@ public final class LinearAPIClient: Sendable {
         case 429:
             throw APIError.rateLimited
         default:
-            throw APIError.serverError(statusCode: httpResponse.statusCode)
+            let body = String(data: data, encoding: .utf8)
+            throw APIError.serverError(statusCode: httpResponse.statusCode, body: body)
         }
 
         let decoded: LinearGraphQLResponse

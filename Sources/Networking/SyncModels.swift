@@ -39,6 +39,12 @@ public struct LinearIssue: Codable, Identifiable {
 
 // MARK: - Pylon REST Response Structures
 
+public struct PylonMeResponse: Codable {
+    public let id: String
+    public let name: String
+    public let email: String
+}
+
 public struct PylonSearchResponse: Codable {
     public let data: [PylonIssue]?
     public let request_id: String?
@@ -46,15 +52,13 @@ public struct PylonSearchResponse: Codable {
 
 public struct PylonIssue: Codable, Identifiable {
     public let id: String
-    public let issue_number: Int
+    public let number: Int
     public let title: String
     public let state: String
-    public let priority: String?
-    public let account: PylonAccount?
-
-    public struct PylonAccount: Codable {
-        public let name: String
-    }
+    public let source: String?
+    public let type: String?
+    public let account_id: String?
+    public let assignee_id: String?
 }
 
 // MARK: - Generic Digest Item
@@ -90,7 +94,7 @@ public struct DigestItem {
 public enum APIError: LocalizedError {
     case unauthorized
     case rateLimited
-    case serverError(statusCode: Int)
+    case serverError(statusCode: Int, body: String? = nil)
     case networkError(underlying: Error)
     case decodingError(underlying: Error)
     case noToken(service: String)
@@ -102,7 +106,10 @@ public enum APIError: LocalizedError {
             return "Invalid or expired API token (401 Unauthorized)"
         case .rateLimited:
             return "Rate limited by API (429). Try again later."
-        case .serverError(let code):
+        case .serverError(let code, let body):
+            if let body, !body.isEmpty {
+                return "HTTP \(code): \(body)"
+            }
             return "Server error (HTTP \(code))"
         case .networkError(let err):
             return "Network error: \(err.localizedDescription)"

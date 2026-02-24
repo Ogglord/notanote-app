@@ -11,11 +11,34 @@ public final class PylonAPIClient: Sendable {
         self.session = session
     }
 
-    /// Fetch active issues assigned to the authenticated user.
+    /// Fetch the authenticated user's ID.
+    public func fetchMyUserId() async throws -> String {
+        let url = Self.baseURL.appendingPathComponent("/me")
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await performRequest(request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8)
+            throw APIError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0, body: body)
+        }
+        let me = try JSONDecoder().decode(PylonMeResponse.self, from: data)
+        return me.id
+    }
+
+    /// Fetch open issues assigned to the authenticated user (new + waiting on you).
     public func fetchMyIssues() async throws -> [PylonIssue] {
+        let myId = try await fetchMyUserId()
+
         var components = URLComponents(url: Self.baseURL.appendingPathComponent("/issues"), resolvingAgainstBaseURL: false)!
+        let now = ISO8601DateFormatter().string(from: Date())
+        let thirtyDaysAgo = ISO8601DateFormatter().string(from: Date(timeIntervalSinceNow: -30 * 86400))
         components.queryItems = [
-            URLQueryItem(name: "states", value: "new,waiting_on_you,waiting_on_customer,on_hold"),
+            URLQueryItem(name: "start_time", value: thirtyDaysAgo),
+            URLQueryItem(name: "end_time", value: now),
+            URLQueryItem(name: "states", value: "new,waiting_on_you"),
+            URLQueryItem(name: "assignee", value: myId),
         ]
 
         guard let url = components.url else {
@@ -41,14 +64,20 @@ public final class PylonAPIClient: Sendable {
         case 429:
             throw APIError.rateLimited
         default:
-            throw APIError.serverError(statusCode: httpResponse.statusCode)
+            let body = String(data: data, encoding: .utf8)
+            throw APIError.serverError(statusCode: httpResponse.statusCode, body: body)
         }
 
         let decoded: PylonSearchResponse
         do {
             decoded = try JSONDecoder().decode(PylonSearchResponse.self, from: data)
         } catch {
-            throw APIError.decodingError(underlying: error)
+            let preview = String(data: data.prefix(500), encoding: .utf8) ?? "<binary>"
+            throw APIError.decodingError(underlying: NSError(
+                domain: "PylonDecode",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "\(error.localizedDescription)\nResponse: \(preview)"]
+            ))
         }
 
         return decoded.data ?? []

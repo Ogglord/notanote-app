@@ -1,10 +1,33 @@
 import SwiftUI
 import Models
 import Services
+import Networking
+
+// MARK: - Bridge Services.DigestFileManager to Networking.DigestWriter
+
+extension DigestFileManager: DigestWriter {
+    public func writeDigest(source: String, items: [DigestItem]) throws {
+        let lines = items.map { item in
+            buildSourceLine(
+                text: item.text,
+                source: source,
+                sourceId: item.sourceId,
+                url: item.url,
+                identifier: item.identifier,
+                priority: item.priority,
+                status: item.status
+            )
+        }
+        syncItems(source: source, lines: lines)
+    }
+}
+
+// MARK: - App
 
 struct LogSeqTodosApp: App {
     @State private var viewModel: TodoListViewModel
     @State private var gitService: GitSyncService
+    @State private var syncService: APISyncService
 
     init() {
         let defaultPath = UserDefaults.standard.string(forKey: "logseq.graphPath") ?? "/Users/ogge/repos/notes"
@@ -14,8 +37,14 @@ struct LogSeqTodosApp: App {
         let git = GitSyncService()
         _gitService = State(initialValue: git)
 
-        // Wire the git service into the settings window controller
+        let sync = APISyncService()
+        let digestManager = DigestFileManager(graphPath: store.graphPath)
+        sync.configure(digestWriter: digestManager)
+        _syncService = State(initialValue: sync)
+
+        // Wire services into the settings window controller
         SettingsWindowController.shared.gitService = git
+        SettingsWindowController.shared.syncService = sync
 
         // Detect git status for the current graph path
         let effectivePath = store.graphPath
@@ -25,11 +54,25 @@ struct LogSeqTodosApp: App {
         if git.enabled {
             git.startPeriodicSync(at: effectivePath)
         }
+
+        // Start periodic API sync if any source is enabled
+        if sync.linearEnabled || sync.pylonEnabled {
+            sync.startPeriodicSync()
+        }
     }
 
     var body: some Scene {
         MenuBarExtra {
             MenuPopoverView(viewModel: viewModel)
+                .onReceive(NotificationCenter.default.publisher(for: .apiSyncRequested)) { _ in
+                    Task {
+                        await syncService.syncAll()
+                        viewModel.store.reload()
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .apiSyncCompleted)) { _ in
+                    viewModel.store.reload()
+                }
         } label: {
             Label("\(viewModel.activeTodoCount)", systemImage: "checkmark.circle")
         }

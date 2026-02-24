@@ -1,14 +1,20 @@
 import AppKit
 import SwiftUI
 import Services
+import Networking
 
 /// Manages a standalone NSWindow for settings in a menubar-only app.
 /// SwiftUI's `Settings` scene doesn't work reliably with LSUIElement apps,
 /// so we manage the window ourselves.
-final class SettingsWindowController {
+///
+/// When the settings window is open, the app temporarily becomes a regular app
+/// (visible in Cmd+Tab / Dock) so text fields work properly and the window
+/// is easy to find. When closed, it reverts to an agent (menu-bar-only) app.
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     static let shared = SettingsWindowController()
 
     var gitService: GitSyncService?
+    var syncService: APISyncService?
 
     private var window: NSWindow?
 
@@ -19,17 +25,23 @@ final class SettingsWindowController {
             return
         }
 
+        // Become a regular app so the window appears in Cmd+Tab and text fields work
+        NSApp.setActivationPolicy(.regular)
+
         let settingsView = SettingsView(
-            gitService: gitService ?? GitSyncService()
+            gitService: gitService ?? GitSyncService(),
+            syncService: syncService ?? APISyncService()
         )
         let hostingController = NSHostingController(rootView: settingsView)
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "LogSeq Todos Settings"
-        window.styleMask = [.titled, .closable]
+        window.styleMask = [.titled, .closable, .resizable]
         window.setContentSize(NSSize(width: 500, height: 440))
+        window.minSize = NSSize(width: 500, height: 380)
         window.center()
         window.isReleasedWhenClosed = false
+        window.delegate = self
 
         self.window = window
 
@@ -40,5 +52,12 @@ final class SettingsWindowController {
 
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        // Revert to agent app (menu-bar-only, no Dock icon)
+        NSApp.setActivationPolicy(.accessory)
     }
 }

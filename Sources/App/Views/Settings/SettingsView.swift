@@ -5,11 +5,12 @@ import Networking
 
 struct SettingsView: View {
     @Bindable var gitService: GitSyncService
+    var syncService: APISyncService
     @AppStorage("graphPath") private var graphPath: String = ""
 
     var body: some View {
         TabView {
-            GeneralTab()
+            GeneralTab(syncService: syncService)
                 .tabItem { Label("General", systemImage: "gear") }
 
             AppearanceTab()
@@ -24,7 +25,7 @@ struct SettingsView: View {
             GitSyncTab(gitService: gitService, graphPath: effectiveGraphPath)
                 .tabItem { Label("Git Sync", systemImage: "arrow.triangle.2.circlepath") }
         }
-        .frame(width: 500, height: 420)
+        .frame(minWidth: 500, minHeight: 380)
     }
 
     private var effectiveGraphPath: String {
@@ -37,10 +38,12 @@ struct SettingsView: View {
 // MARK: - General
 
 private struct GeneralTab: View {
+    var syncService: APISyncService
+
     var body: some View {
         Form {
             StorageSettingsSection()
-            SyncScheduleSection()
+            SyncScheduleSection(syncService: syncService)
             Section {
                 Button("Quit LogSeq Todos") {
                     NSApplication.shared.terminate(nil)

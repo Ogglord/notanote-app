@@ -3,6 +3,7 @@ import Models
 
 struct DisplaySettingsSection: View {
     @AppStorage("showCompletedTasks") private var showCompletedTasks: Bool = false
+    @AppStorage("groupMode") private var groupModeRaw: String = GroupMode.byPage.rawValue
     @AppStorage("autoRefreshInterval") private var autoRefreshInterval: Double = 2
     @AppStorage("enabledMarkers") private var enabledMarkersData: Data = {
         let allMarkers = TaskMarker.allCases.map(\.rawValue)
@@ -21,6 +22,12 @@ struct DisplaySettingsSection: View {
     var body: some View {
         Section("Display") {
             Toggle("Show completed tasks", isOn: $showCompletedTasks)
+            Picker("Group by", selection: $groupModeRaw) {
+                ForEach(GroupMode.allCases) { mode in
+                    Label(mode.displayName, systemImage: mode.iconName)
+                        .tag(mode.rawValue)
+                }
+            }
             HStack {
                 Text("Auto-refresh interval")
                 Slider(value: $autoRefreshInterval, in: 1...30, step: 1) {

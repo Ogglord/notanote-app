@@ -19,7 +19,6 @@ struct MenuPopoverView: View {
             // Filter bar
             FilterBarView(
                 filterMode: $viewModel.filterMode,
-                groupMode: $viewModel.groupMode,
                 sourceFilter: $viewModel.sourceFilter,
                 sourceCounts: viewModel.sourceCounts
             )
