@@ -1,0 +1,11 @@
+# Swift Package Manager build artifacts
+.build/
+
+# Release build outputs (app bundle, dmg, icons)
+build/
+
+# macOS metadata
+.DS_Store
+
+# Local MCP config (contains machine-specific paths)
+.mcp.json

@@ -1,0 +1,1 @@
+- Always recompile (`swift build`) and kill/restart the app after any code change.
