@@ -28,6 +28,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         // Become a regular app so the window appears in Cmd+Tab and text fields work
         NSApp.setActivationPolicy(.regular)
 
+        // Set the Dock / Cmd+Tab icon from bundled resources
+        if let iconURL = Bundle.module.url(forResource: "AppIcon", withExtension: "icns", subdirectory: "Resources") {
+            NSApp.applicationIconImage = NSImage(contentsOf: iconURL)
+        }
+
         let settingsView = SettingsView(
             gitService: gitService ?? GitSyncService(),
             syncService: syncService ?? APISyncService()
@@ -35,7 +40,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: settingsView)
 
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "LogSeq Todos Settings"
+        window.title = "NotaNote Settings"
         window.styleMask = [.titled, .closable, .resizable]
         window.setContentSize(NSSize(width: 500, height: 440))
         window.minSize = NSSize(width: 500, height: 380)

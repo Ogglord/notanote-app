@@ -17,7 +17,7 @@ public final class LinearAPIClient: Sendable {
         {
           viewer {
             assignedIssues(
-              filter: { state: { type: { nin: ["completed", "cancelled"] } } }
+              filter: { state: { type: { nin: ["completed", "canceled"] } } }
               first: 100
               orderBy: updatedAt
             ) {

@@ -1,10 +1,12 @@
 import SwiftUI
+import AppKit
 import Models
 
 struct DisplaySettingsSection: View {
     @AppStorage("showCompletedTasks") private var showCompletedTasks: Bool = false
     @AppStorage("groupMode") private var groupModeRaw: String = GroupMode.byPage.rawValue
     @AppStorage("autoRefreshInterval") private var autoRefreshInterval: Double = 2
+    @AppStorage("menuBarIcon") private var menuBarIcon: String = "checkmark"
     @AppStorage("enabledMarkers") private var enabledMarkersData: Data = {
         let allMarkers = TaskMarker.allCases.map(\.rawValue)
         return (try? JSONEncoder().encode(allMarkers)) ?? Data()
@@ -27,6 +29,28 @@ struct DisplaySettingsSection: View {
                     Label(mode.displayName, systemImage: mode.iconName)
                         .tag(mode.rawValue)
                 }
+            }
+            Picker("Menu bar icon", selection: $menuBarIcon) {
+                Label("Checkmark", systemImage: "checkmark.circle")
+                    .tag("checkmark")
+                HStack(spacing: 4) {
+                    if let img = menuBarPreviewImage(named: "menubar-not") {
+                        Image(nsImage: img)
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                    }
+                    Text("NOT mark")
+                }
+                .tag("not")
+                HStack(spacing: 4) {
+                    if let img = menuBarPreviewImage(named: "menubar-alt") {
+                        Image(nsImage: img)
+                            .resizable()
+                            .frame(width: 14, height: 14)
+                    }
+                    Text("N-check")
+                }
+                .tag("alt")
             }
             HStack {
                 Text("Auto-refresh interval")
@@ -85,6 +109,11 @@ struct DisplaySettingsSection: View {
                 }
             }
         }
+    }
+
+    private func menuBarPreviewImage(named name: String) -> NSImage? {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "Resources") else { return nil }
+        return NSImage(contentsOf: url)
     }
 
     private func markerBinding(for marker: TaskMarker) -> Binding<Bool> {

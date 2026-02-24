@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import os.log
 
-private let logger = Logger(subsystem: "com.logseqtodos", category: "APISyncService")
+private let logger = Logger(subsystem: "com.notanote", category: "APISyncService")
 
 /// Orchestrator that manages periodic syncing from Linear and Pylon APIs
 /// into the local LogSeq digest files.
@@ -157,10 +157,37 @@ public final class APISyncService {
             return
         }
 
-        log("Pylon: fetching issues...")
         let client = PylonAPIClient(apiKey: apiKey)
-        let issues = try await client.fetchMyIssues()
-        log("Pylon: fetched \(issues.count) issues")
+
+        let pylonEmail = UserDefaults.standard.string(forKey: "pylon.email") ?? ""
+        let userId: String?
+        if pylonEmail.isEmpty {
+            log("Pylon: no email configured, skipping assignee filter")
+            userId = nil
+        } else {
+            log("Pylon: looking up user by email \(pylonEmail)...")
+            do {
+                userId = try await client.fetchCurrentUserId(email: pylonEmail)
+                log("Pylon: user ID = \(userId ?? "nil")")
+            } catch {
+                log("Pylon: could not fetch user ID (\(error.localizedDescription)), will skip assignee filter")
+                userId = nil
+            }
+        }
+
+        log("Pylon: fetching issues...")
+        let allIssues = try await client.fetchAllRecentIssues()
+        let validStates: Set<String> = ["new", "waiting_on_you"]
+        var issues = allIssues.filter { validStates.contains($0.state) }
+        log("Pylon: \(allIssues.count) total → \(issues.count) with state new/waiting_on_you")
+        if let userId {
+            issues = issues.filter { $0.resolvedAssigneeId == userId }
+            log("Pylon: \(issues.count) assigned to me (\(userId.prefix(8))...)")
+        }
+        for issue in issues.prefix(5) {
+            log("  - #\(issue.number) \"\(issue.title)\" state=\(issue.state)")
+        }
+        if issues.count > 5 { log("  ... and \(issues.count - 5) more") }
 
         let items = issues.map { issue in
             DigestItem(

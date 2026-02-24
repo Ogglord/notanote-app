@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>com.logseqtodos.app</string>
+	<string>com.notanote.app</string>
 	<key>CFBundleName</key>
-	<string>LogSeq Todos</string>
+	<string>NotaNote</string>
 	<key>CFBundleDisplayName</key>
-	<string>LogSeq Todos</string>
+	<string>NotaNote</string>
 	<key>CFBundleExecutable</key>
-	<string>LogSeqTodos</string>
+	<string>NotaNote</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleVersion</key>

@@ -1,4 +1,4 @@
-# LogSeq Todos - Architecture
+# NotaNote - Architecture
 
 ## Module Structure
 
@@ -19,7 +19,7 @@ Sources/
     |-- MCPServer, JSONRPCTypes
     |
   App/             (executable, depends: all)
-    |-- main.swift, LogSeqTodosApp
+    |-- main.swift, NotaNoteApp
     |-- Views/, ViewModels/, Extensions/
 ```
 
@@ -37,7 +37,7 @@ Services    Networking   file I/O, parsing   |   HTTP, Keychain
   |       ^        |
   +-------+--------+
           |
-    LogSeqTodos          SwiftUI app, menu bar popover
+    NotaNote             SwiftUI app, menu bar popover
 ```
 
 ## Key Design Decisions
@@ -112,4 +112,4 @@ Runs as headless process via `--mcp` flag. JSON-RPC 2.0 over stdin/stdout.
 | `git.syncInterval` | Git sync interval (minutes) |
 | `git.commitTemplate` | Commit message template |
 
-API tokens stored in macOS Keychain (service: `com.logseqtodos.api-tokens`).
+API tokens stored in macOS Keychain (service: `com.notanote.api-tokens`).

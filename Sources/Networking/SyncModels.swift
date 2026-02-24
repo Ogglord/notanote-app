@@ -59,6 +59,16 @@ public struct PylonIssue: Codable, Identifiable {
     public let type: String?
     public let account_id: String?
     public let assignee_id: String?
+    public let assignee: PylonRef?
+
+    /// Resolved assignee ID: prefer flat field, fall back to nested object
+    public var resolvedAssigneeId: String? {
+        assignee_id ?? assignee?.id
+    }
+
+    public struct PylonRef: Codable {
+        public let id: String
+    }
 }
 
 // MARK: - Generic Digest Item

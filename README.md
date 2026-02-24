@@ -1,4 +1,4 @@
-# LogSeq Todos
+# NotaNote
 
 A lightweight macOS menu bar app that turns LogSeq-flavored markdown into a fast, always-accessible todo list. Works standalone or alongside an existing LogSeq graph -- your todos stay as plain `.md` files you own forever.
 
@@ -18,7 +18,7 @@ Ships with a built-in **MCP server** so AI assistants can read, create, and mana
 swift build
 ```
 
-The binary lands at `.build/debug/LogSeqTodos`. Run it for the GUI, or with `--mcp` for headless MCP mode.
+The binary lands at `.build/debug/NotaNote`. Run it for the GUI, or with `--mcp` for headless MCP mode.
 
 Requires macOS 14+ and Swift 5.9+.
 
@@ -65,7 +65,7 @@ Add to your MCP client config:
 {
   "mcpServers": {
     "logseq-todos": {
-      "command": "/path/to/LogSeqTodos",
+      "command": "/path/to/NotaNote",
       "args": ["--mcp"]
     }
   }
@@ -100,7 +100,7 @@ Services  Networking  -- file I/O, parsing | HTTP, Keychain
   |    MCP       |  -- JSON-RPC server
   +----+----+----+
        |
-  LogSeqTodos       -- SwiftUI menu bar app
+  NotaNote          -- SwiftUI menu bar app
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full breakdown.

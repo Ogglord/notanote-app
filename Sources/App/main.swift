@@ -19,5 +19,5 @@ if CommandLine.arguments.contains("--mcp") {
     let server = MCPServer(graphPath: graphPath, digestManager: digestManager)
     server.run() // never returns
 } else {
-    LogSeqTodosApp.main()
+    NotaNoteApp.main()
 }

@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "LogSeqTodos",
+    name: "NotaNote",
     platforms: [.macOS(.v14)],
     targets: [
         .target(
@@ -25,7 +25,7 @@ let package = Package(
             path: "Sources/MCP"
         ),
         .executableTarget(
-            name: "LogSeqTodos",
+            name: "NotaNote",
             dependencies: ["Models", "Services", "Networking", "MCP"],
             path: "Sources/App",
             resources: [

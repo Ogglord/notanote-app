@@ -24,12 +24,16 @@ extension DigestFileManager: DigestWriter {
 
 // MARK: - App
 
-struct LogSeqTodosApp: App {
+struct NotaNoteApp: App {
     @State private var viewModel: TodoListViewModel
     @State private var gitService: GitSyncService
     @State private var syncService: APISyncService
+    @AppStorage("menuBarIcon") private var menuBarIcon: String = "checkmark"
 
     init() {
+        // Preload keychain tokens so there's at most one unlock prompt
+        KeychainHelper.preloadTokens(accounts: ["linear-api-token", "pylon-api-token"])
+
         let defaultPath = UserDefaults.standard.string(forKey: "logseq.graphPath") ?? "/Users/ogge/repos/notes"
         let store = TodoStore(graphPath: defaultPath)
         _viewModel = State(initialValue: TodoListViewModel(store: store))
@@ -74,8 +78,39 @@ struct LogSeqTodosApp: App {
                     viewModel.store.reload()
                 }
         } label: {
-            Label("\(viewModel.activeTodoCount)", systemImage: "checkmark.circle")
+            menuBarLabel
         }
         .menuBarExtraStyle(.window)
+    }
+
+    @ViewBuilder
+    private var menuBarLabel: some View {
+        switch menuBarIcon {
+        case "not":
+            customMenuBarLabel(imageName: "menubar-not")
+        case "alt":
+            customMenuBarLabel(imageName: "menubar-alt")
+        default:
+            Label("\(viewModel.activeTodoCount)", systemImage: "checkmark.circle")
+        }
+    }
+
+    @ViewBuilder
+    private func customMenuBarLabel(imageName: String) -> some View {
+        if let img = loadTemplateImage(named: imageName) {
+            HStack(spacing: 2) {
+                Image(nsImage: img)
+                Text("\(viewModel.activeTodoCount)")
+            }
+        } else {
+            Label("\(viewModel.activeTodoCount)", systemImage: "checkmark.circle")
+        }
+    }
+
+    private func loadTemplateImage(named name: String) -> NSImage? {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "Resources"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        return image
     }
 }

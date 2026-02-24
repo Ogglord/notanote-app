@@ -1,8 +1,8 @@
-APP_NAME = LogSeq Todos
-BINARY_NAME = LogSeqTodos
+APP_NAME = NotaNote
+BINARY_NAME = NotaNote
 BUILD_DIR = .build/release
 BUNDLE_DIR = build/$(APP_NAME).app
-DMG_NAME = LogSeqTodos.dmg
+DMG_NAME = NotaNote.dmg
 VERSION = 1.0
 
 .PHONY: build run bundle install installer clean
@@ -17,12 +17,17 @@ icon:
 	mkdir -p build/icon.iconset
 	swift Scripts/generate_icon.swift build/icon.iconset
 	iconutil -c icns build/icon.iconset -o build/AppIcon.icns
+	cp build/AppIcon.icns Sources/App/Resources/AppIcon.icns
+	cp build/icon.iconset/menubar-not.png Sources/App/Resources/menubar-not.png
+	cp build/icon.iconset/menubar-not@2x.png Sources/App/Resources/menubar-not@2x.png
+	cp build/icon.iconset/menubar-alt.png Sources/App/Resources/menubar-alt.png
+	cp build/icon.iconset/menubar-alt@2x.png Sources/App/Resources/menubar-alt@2x.png
 
 bundle: build
 	mkdir -p "$(BUNDLE_DIR)/Contents/MacOS"
 	mkdir -p "$(BUNDLE_DIR)/Contents/Resources"
 	cp $(BUILD_DIR)/$(BINARY_NAME) "$(BUNDLE_DIR)/Contents/MacOS/"
-	cp Sources/Resources/Info.plist "$(BUNDLE_DIR)/Contents/"
+	cp Sources/App/Resources/Info.plist "$(BUNDLE_DIR)/Contents/"
 	@if [ -f build/AppIcon.icns ]; then \
 		cp build/AppIcon.icns "$(BUNDLE_DIR)/Contents/Resources/"; \
 	fi
@@ -43,7 +48,12 @@ installer: bundle
 	@echo "Installer created: build/$(DMG_NAME)"
 
 install: bundle
+	@pkill -x $(BINARY_NAME) 2>/dev/null || true
+	@sleep 0.5
+	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(BUNDLE_DIR)" "/Applications/$(APP_NAME).app"
+	@echo "Installed to /Applications/$(APP_NAME).app"
+	open "/Applications/$(APP_NAME).app"
 
 clean:
 	swift package clean

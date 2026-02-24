@@ -81,6 +81,7 @@ struct LinearSettingsSection: View {
 
 struct PylonSettingsSection: View {
     @AppStorage("pylon.enabled") private var pylonEnabled: Bool = false
+    @AppStorage("pylon.email") private var pylonEmail: String = ""
     @State private var token: String = ""
     @State private var testStatus: ConnectionTestStatus = .idle
 
@@ -91,6 +92,10 @@ struct PylonSettingsSection: View {
             Toggle("Enable Pylon sync", isOn: $pylonEnabled)
 
             if pylonEnabled {
+                TextField("Your email", text: $pylonEmail)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+
                 SecureField("API Token", text: $token)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))

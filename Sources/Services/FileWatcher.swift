@@ -10,7 +10,7 @@ public final class FileWatcher {
     private var timer: DispatchSourceTimer?
     private var lastModDates: [String: Date] = [:]
     private var pendingNotify: DispatchWorkItem?
-    private let queue = DispatchQueue(label: "com.logseqtodos.filewatcher", qos: .utility)
+    private let queue = DispatchQueue(label: "com.notanote.filewatcher", qos: .utility)
     private var currentPollInterval: TimeInterval
 
     /// Create a new file watcher.
