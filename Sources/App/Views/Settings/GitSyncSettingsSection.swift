@@ -109,6 +109,34 @@ struct GitSyncSettingsSection: View {
                         .lineLimit(3)
                 }
             }
+
+            // Log
+            if !gitService.syncLog.isEmpty {
+                DisclosureGroup("Log") {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 2) {
+                                ForEach(Array(gitService.syncLog.enumerated()), id: \.offset) { idx, entry in
+                                    Text(entry)
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(entry.contains("ERROR") ? .red : .secondary)
+                                        .id(idx)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(4)
+                        }
+                        .frame(height: 100)
+                        .background(.black.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .onChange(of: gitService.syncLog.count) {
+                            if let last = gitService.syncLog.indices.last {
+                                proxy.scrollTo(last, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

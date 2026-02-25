@@ -1,5 +1,8 @@
 import Foundation
 import Observation
+import os.log
+
+private let logger = Logger(subsystem: "com.notanote", category: "GitSyncService")
 
 @Observable
 public final class GitSyncService {
@@ -9,6 +12,7 @@ public final class GitSyncService {
     public private(set) var lastCommitDate: Date?
     public private(set) var lastError: String?
     public private(set) var isSyncing = false
+    public private(set) var syncLog: [String] = []
 
     public var enabled: Bool {
         didSet { UserDefaults.standard.set(enabled, forKey: "git.enabled") }
@@ -24,6 +28,19 @@ public final class GitSyncService {
 
     private var syncTask: Task<Void, Never>?
 
+    private static let timestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
+    private func log(_ message: String) {
+        let entry = "[\(Self.timestampFormatter.string(from: Date()))] Git: \(message)"
+        logger.info("\(entry)")
+        syncLog.append(entry)
+        if syncLog.count > 50 { syncLog.removeFirst(syncLog.count - 50) }
+    }
+
     public init() {
         self.enabled = UserDefaults.standard.bool(forKey: "git.enabled")
         let interval = UserDefaults.standard.double(forKey: "git.syncInterval")
@@ -32,37 +49,34 @@ public final class GitSyncService {
             ?? "Auto-sync: {date}"
     }
 
-    /// Detect if the given path is inside a git repo with a remote
+    /// Detect if the given path is inside a git repo with a remote.
+    /// This runs git commands synchronously (they're fast) so state is set immediately.
     public func detectGitStatus(at path: String) {
-        Task.detached { [weak self] in
-            guard let self else { return }
-            do {
-                let result = try self.runGit(at: path, args: ["rev-parse", "--is-inside-work-tree"])
-                let isRepo = result.trimmingCharacters(in: .whitespacesAndNewlines) == "true"
-                await MainActor.run { self.isGitRepo = isRepo }
+        do {
+            let result = try runGit(at: path, args: ["rev-parse", "--is-inside-work-tree"])
+            let isRepo = result.trimmingCharacters(in: .whitespacesAndNewlines) == "true"
+            isGitRepo = isRepo
+            log("Detected git repo: \(isRepo)")
 
-                if isRepo {
-                    let remoteOutput = try self.runGit(at: path, args: ["remote"])
-                    let remotes = remoteOutput.split(separator: "\n").map(String.init)
-                    let foundRemote = !remotes.isEmpty
-                    let name = remotes.first
-                    await MainActor.run {
-                        self.hasRemote = foundRemote
-                        self.remoteName = name
-                    }
+            if isRepo {
+                let remoteOutput = try runGit(at: path, args: ["remote"])
+                let remotes = remoteOutput.split(separator: "\n").map(String.init)
+                hasRemote = !remotes.isEmpty
+                remoteName = remotes.first
+                if hasRemote {
+                    log("Remote: \(remoteName ?? "unknown")")
                 } else {
-                    await MainActor.run {
-                        self.hasRemote = false
-                        self.remoteName = nil
-                    }
+                    log("No remote configured")
                 }
-            } catch {
-                await MainActor.run {
-                    self.isGitRepo = false
-                    self.hasRemote = false
-                    self.remoteName = nil
-                }
+            } else {
+                hasRemote = false
+                remoteName = nil
             }
+        } catch {
+            isGitRepo = false
+            hasRemote = false
+            remoteName = nil
+            log("Git detection failed: \(error.localizedDescription)")
         }
     }
 
@@ -71,6 +85,7 @@ public final class GitSyncService {
         await MainActor.run {
             isSyncing = true
             lastError = nil
+            log("Starting commit & push at \(path)")
         }
         defer {
             Task { @MainActor in
@@ -90,29 +105,34 @@ public final class GitSyncService {
             // Check if there are staged changes
             let diffStatus = runGitExitCode(at: path, args: ["diff", "--cached", "--quiet"])
             if diffStatus == 0 {
-                // No changes to commit
+                await MainActor.run { log("No changes to commit") }
                 return
             }
 
             // Commit
             _ = try runGit(at: path, args: ["commit", "-m", message])
+            await MainActor.run { log("Committed changes") }
 
             // Push if remote exists
             let pushRemote = await MainActor.run { self.hasRemote }
             if pushRemote {
                 _ = try runGit(at: path, args: ["push"])
+                await MainActor.run { log("Pushed to remote") }
             }
 
             await MainActor.run {
                 self.lastCommitDate = Date()
+                log("Sync complete")
             }
         } catch let error as GitError {
             await MainActor.run {
                 self.lastError = error.errorDescription
+                log("ERROR: \(error.errorDescription ?? "unknown")")
             }
         } catch {
             await MainActor.run {
                 self.lastError = error.localizedDescription
+                log("ERROR: \(error.localizedDescription)")
             }
         }
     }
@@ -122,6 +142,8 @@ public final class GitSyncService {
         guard enabled else { return }
 
         syncTask = Task.detached { [weak self] in
+            // Run an initial sync immediately
+            if let self { await self.commitAndPush(at: path) }
             while !Task.isCancelled {
                 guard let self else { return }
                 let interval = await MainActor.run { self.syncIntervalMinutes }
@@ -142,6 +164,8 @@ public final class GitSyncService {
     // MARK: - Shell helpers
 
     private func runGit(at path: String, args: [String]) throws -> String {
+        let cmd = "git -C \(path) \(args.joined(separator: " "))"
+        log("$ \(cmd)")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-C", path] + args
@@ -153,13 +177,20 @@ public final class GitSyncService {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8) ?? ""
         if process.terminationStatus != 0 {
+            log("  ✗ exit \(process.terminationStatus): \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
             throw GitError.commandFailed(output.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            log("  ✓ \(trimmed)")
+        }
+        return trimmed
     }
 
     /// Run git and return only the exit code (no throw on non-zero)
     private func runGitExitCode(at path: String, args: [String]) -> Int32 {
+        let cmd = "git -C \(path) \(args.joined(separator: " "))"
+        log("$ \(cmd)")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-C", path] + args
@@ -168,8 +199,10 @@ public final class GitSyncService {
         do {
             try process.run()
             process.waitUntilExit()
+            log("  → exit \(process.terminationStatus)")
             return process.terminationStatus
         } catch {
+            log("  ✗ failed to run: \(error.localizedDescription)")
             return -1
         }
     }

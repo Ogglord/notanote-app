@@ -13,8 +13,15 @@ public final class APISyncService {
     public private(set) var isSyncing = false
     public private(set) var lastLinearSync: Date?
     public private(set) var lastPylonSync: Date?
+    public private(set) var lastLinearCount: Int = 0
+    public private(set) var lastPylonCount: Int = 0
     public private(set) var lastError: String?
     public private(set) var syncLog: [String] = []
+
+    /// Most recent sync completion time (whichever source finished last)
+    public var lastSyncDate: Date? {
+        [lastLinearSync, lastPylonSync].compactMap { $0 }.max()
+    }
 
     private func log(_ message: String) {
         let entry = "[\(Self.timestampFormatter.string(from: Date()))] \(message)"
@@ -143,6 +150,7 @@ public final class APISyncService {
         log("Linear: writing \(items.count) items to \(path)")
         try writer.writeDigest(source: "linear", items: items)
         lastLinearSync = Date()
+        lastLinearCount = items.count
         log("Linear: sync complete")
     }
 
@@ -203,6 +211,7 @@ public final class APISyncService {
         log("Pylon: writing \(items.count) items to \(path)")
         try writer.writeDigest(source: "pylon", items: items)
         lastPylonSync = Date()
+        lastPylonCount = items.count
         log("Pylon: sync complete")
     }
 

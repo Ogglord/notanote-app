@@ -69,10 +69,13 @@ class TodoListViewModel {
             }
         }
 
-        items = items.filter { selectedMarkers.contains($0.marker) }
+        // Only apply marker/completed filters when not already filtering by done or all
+        if filterMode != .done && filterMode != .all {
+            items = items.filter { selectedMarkers.contains($0.marker) }
 
-        if !showCompleted {
-            items = items.filter { !$0.marker.isCompleted }
+            if !showCompleted {
+                items = items.filter { !$0.marker.isCompleted }
+            }
         }
 
         if let sourceFilter {
@@ -137,6 +140,16 @@ class TodoListViewModel {
 
     func addTodo(_ text: String) {
         store.addTodoToJournal(text)
+    }
+
+    func updateContent(_ item: TodoItem, newContent: String) {
+        store.updateContent(item, newContent: newContent)
+    }
+
+    func updatePriority(_ item: TodoItem, to priority: TaskPriority) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            store.updatePriority(item, to: priority)
+        }
     }
 
     // MARK: - Grouping Helpers

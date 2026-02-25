@@ -42,8 +42,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let window = NSWindow(contentViewController: hostingController)
         window.title = "NotaNote Settings"
         window.styleMask = [.titled, .closable, .resizable]
-        window.setContentSize(NSSize(width: 500, height: 440))
-        window.minSize = NSSize(width: 500, height: 380)
+        window.setContentSize(NSSize(width: 640, height: 480))
+        window.minSize = NSSize(width: 640, height: 460)
         window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self

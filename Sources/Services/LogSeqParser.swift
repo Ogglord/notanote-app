@@ -63,6 +63,89 @@ public enum LogSeqParser {
         try newContent.write(toFile: filePath, atomically: true, encoding: .utf8)
     }
 
+    /// Update the text content of a task on a specific line, preserving marker, priority, tags, etc.
+    public static func updateTaskContent(in filePath: String, at lineNumber: Int, newContent: String) throws {
+        guard let data = FileManager.default.contents(atPath: filePath),
+              let content = String(data: data, encoding: .utf8) else {
+            throw ParserError.fileNotReadable(filePath)
+        }
+
+        var lines = content.components(separatedBy: "\n")
+        guard lineNumber >= 0, lineNumber < lines.count else {
+            throw ParserError.lineOutOfRange(lineNumber)
+        }
+
+        let line = lines[lineNumber]
+        let nsLine = line as NSString
+        let fullRange = NSRange(location: 0, length: nsLine.length)
+
+        guard let taskMatch = taskPattern.firstMatch(in: line, range: fullRange) else {
+            throw ParserError.noMarkerFound(lineNumber)
+        }
+
+        // Build prefix: indentation + "- " + MARKER
+        let prefix = nsLine.substring(to: taskMatch.range.upperBound)
+
+        // Preserve priority if present
+        let afterMarker = nsLine.substring(from: taskMatch.range.upperBound)
+        var priorityStr = ""
+        if let priMatch = priorityPattern.firstMatch(in: afterMarker, range: NSRange(location: 0, length: (afterMarker as NSString).length)) {
+            priorityStr = " " + (afterMarker as NSString).substring(with: priMatch.range)
+        }
+
+        lines[lineNumber] = prefix + priorityStr + " " + newContent
+        let newFileContent = lines.joined(separator: "\n")
+        try newFileContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+    }
+
+    /// Update the priority of a task on a specific line
+    public static func updateTaskPriority(in filePath: String, at lineNumber: Int, to newPriority: TaskPriority) throws {
+        guard let data = FileManager.default.contents(atPath: filePath),
+              let content = String(data: data, encoding: .utf8) else {
+            throw ParserError.fileNotReadable(filePath)
+        }
+
+        var lines = content.components(separatedBy: "\n")
+        guard lineNumber >= 0, lineNumber < lines.count else {
+            throw ParserError.lineOutOfRange(lineNumber)
+        }
+
+        var line = lines[lineNumber]
+        let nsLine = line as NSString
+        let fullRange = NSRange(location: 0, length: nsLine.length)
+
+        guard let taskMatch = taskPattern.firstMatch(in: line, range: fullRange) else {
+            throw ParserError.noMarkerFound(lineNumber)
+        }
+
+        let afterMarkerStart = taskMatch.range.upperBound
+        let afterMarker = nsLine.substring(from: afterMarkerStart)
+
+        // Remove existing priority if present
+        let afterNS = afterMarker as NSString
+        let afterRange = NSRange(location: 0, length: afterNS.length)
+        var cleaned = afterMarker
+        if let priMatch = priorityPattern.firstMatch(in: afterMarker, range: afterRange) {
+            cleaned = afterNS.replacingCharacters(in: priMatch.range, with: "")
+            // Collapse double spaces left behind
+            while cleaned.contains("  ") {
+                cleaned = cleaned.replacingOccurrences(of: "  ", with: " ")
+            }
+        }
+
+        // Insert new priority right after marker (if not .none)
+        let prefix = nsLine.substring(to: afterMarkerStart)
+        if newPriority != .none {
+            line = prefix + " [#\(newPriority.rawValue)]" + cleaned
+        } else {
+            line = prefix + cleaned
+        }
+
+        lines[lineNumber] = line
+        let newFileContent = lines.joined(separator: "\n")
+        try newFileContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+    }
+
     // MARK: - Error type
 
     public enum ParserError: LocalizedError {
@@ -248,10 +331,18 @@ public enum LogSeqParser {
         }
 
         if source == .pylon {
-            // Build Pylon URL from the issue number (e.g. #491 -> ?issueNumber=491)
+            // First try to extract URL directly from markdown link
+            let matches = markdownLinkPattern.matches(in: text, range: range)
+            for match in matches {
+                let urlString = ns.substring(with: match.range(at: 2))
+                if let url = URL(string: urlString), (url.host ?? "").contains("usepylon.com") {
+                    return url
+                }
+            }
+            // Fallback: build Pylon URL from the issue number (e.g. #491 -> ?issueNumber=491)
             if let numMatch = pylonNumberPattern.firstMatch(in: text, range: range) {
                 let number = ns.substring(with: numMatch.range(at: 1))
-                return URL(string: "https://app.usepylon.com/support/issues/views/all-issues?issueNumber=\(number)")
+                return URL(string: "https://app.usepylon.com/issues?issueNumber=\(number)")
             }
         }
 

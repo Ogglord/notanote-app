@@ -1,1 +1,1 @@
-- Always recompile (`swift build`) and kill/restart the app after any code change.
+- Always recompile, kill, reinstall and launch the app on code changes - use `make install`

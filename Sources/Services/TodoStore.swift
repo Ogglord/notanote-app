@@ -86,6 +86,26 @@ public final class TodoStore {
         }
     }
 
+    /// Update the text content of a task
+    public func updateContent(_ item: TodoItem, newContent: String) {
+        do {
+            try LogSeqParser.updateTaskContent(in: item.filePath, at: item.lineNumber, newContent: newContent)
+            reload()
+        } catch {
+            print("[TodoStore] Failed to update content: \(error.localizedDescription)")
+        }
+    }
+
+    /// Update the priority of a task
+    public func updatePriority(_ item: TodoItem, to priority: TaskPriority) {
+        do {
+            try LogSeqParser.updateTaskPriority(in: item.filePath, at: item.lineNumber, to: priority)
+            reload()
+        } catch {
+            print("[TodoStore] Failed to update priority: \(error.localizedDescription)")
+        }
+    }
+
     /// Add a new TODO item to today's journal file
     public func addTodoToJournal(_ text: String) {
         let formatter = DateFormatter()

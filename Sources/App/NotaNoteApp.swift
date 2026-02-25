@@ -67,7 +67,7 @@ struct NotaNoteApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuPopoverView(viewModel: viewModel)
+            MenuPopoverView(viewModel: viewModel, syncService: syncService)
                 .onReceive(NotificationCenter.default.publisher(for: .apiSyncRequested)) { _ in
                     Task {
                         await syncService.syncAll()
@@ -76,6 +76,12 @@ struct NotaNoteApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .apiSyncCompleted)) { _ in
                     viewModel.store.reload()
+                    // Push digest changes to git after API sync
+                    if gitService.enabled && gitService.isGitRepo {
+                        Task {
+                            await gitService.commitAndPush(at: viewModel.store.graphPath)
+                        }
+                    }
                 }
         } label: {
             menuBarLabel

@@ -14,56 +14,73 @@ struct StorageSettingsSection: View {
             : graphPath
     }
 
+    /// Show just the last folder name for a cleaner display
+    private var folderName: String {
+        (effectivePath as NSString).lastPathComponent
+    }
+
     var body: some View {
-        Section("Storage") {
+        Section("Notes Folder") {
             if isStandaloneMode {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "internaldrive")
                         .foregroundStyle(.secondary)
-                    Text("Standalone mode")
-                        .font(.system(size: 12, weight: .medium))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Standalone mode")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(effectivePath)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                     Spacer()
-                    Button("Set LogSeq Path") {
+                    Button("Connect Folder...") {
                         selectGraphFolder()
                     }
                     .controlSize(.small)
                 }
-                HStack(spacing: 4) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text(effectivePath)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
             } else {
-                HStack {
-                    TextField("Graph path", text: $graphPath)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
-                    Button("Browse...") {
-                        selectGraphFolder()
+                HStack(spacing: 8) {
+                    Image(systemName: "folder.fill")
+                        .foregroundStyle(graphPathValid ? .blue : .red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(folderName)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(graphPath)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    if graphPathValid {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.system(size: 12))
+                            .help("Connected")
+                    } else {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.system(size: 12))
+                            .help("journals/ folder not found")
                     }
                 }
-                HStack(spacing: 4) {
-                    Image(systemName: graphPathValid ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(graphPathValid ? .green : .red)
-                        .font(.system(size: 11))
-                    Text(graphPathValid ? "Valid graph (journals/ found)" : "Invalid path (journals/ not found)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+
+                HStack {
+                    Button("Change...") {
+                        selectGraphFolder()
+                    }
+                    .controlSize(.small)
+
+                    Button("Disconnect") {
+                        graphPath = ""
+                    }
+                    .controlSize(.small)
+                    .foregroundStyle(.secondary)
                 }
-                Button("Switch to standalone mode") {
-                    graphPath = ""
-                }
-                .controlSize(.small)
-                .foregroundStyle(.secondary)
             }
         }
-        .onAppear { validatePath() }
-        .onChange(of: graphPath) { validatePath() }
     }
 
     private func selectGraphFolder() {
@@ -71,7 +88,7 @@ struct StorageSettingsSection: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.message = "Select your LogSeq graph folder"
+        panel.message = "Select your notes folder"
         if panel.runModal() == .OK, let url = panel.url {
             graphPath = url.path
         }
@@ -85,5 +102,11 @@ struct StorageSettingsSection: View {
         let journalsPath = (graphPath as NSString).appendingPathComponent("journals")
         var isDir: ObjCBool = false
         graphPathValid = FileManager.default.fileExists(atPath: journalsPath, isDirectory: &isDir) && isDir.boolValue
+    }
+}
+
+extension StorageSettingsSection {
+    func onAppear() {
+        validatePath()
     }
 }
