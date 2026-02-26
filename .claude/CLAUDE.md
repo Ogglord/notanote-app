@@ -1,1 +1,2 @@
 - Always recompile, kill, reinstall and launch the app on code changes - use `make install`
+- Make sure ARCHITECTURE.md is kept up-to-date
