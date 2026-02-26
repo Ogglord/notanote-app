@@ -13,6 +13,8 @@ public final class GitSyncService {
     public private(set) var lastError: String?
     public private(set) var isSyncing = false
     public private(set) var syncLog: [String] = []
+    public private(set) var hasConflict = false
+    private var conflictPath: String?
 
     public var enabled: Bool {
         didSet { UserDefaults.standard.set(enabled, forKey: "git.enabled") }
@@ -116,6 +118,21 @@ public final class GitSyncService {
             // Push if remote exists
             let pushRemote = await MainActor.run { self.hasRemote }
             if pushRemote {
+                // Pull remote changes first to avoid non-fast-forward errors
+                let pullExitCode = runGitExitCode(at: path, args: ["pull", "--rebase"])
+                if pullExitCode != 0 {
+                    // Rebase failed – likely a conflict
+                    _ = runGitExitCode(at: path, args: ["rebase", "--abort"])
+                    await MainActor.run {
+                        self.hasConflict = true
+                        self.conflictPath = path
+                        self.lastError = "Sync conflict: local and remote have diverged. Choose to keep local notes or cloud notes."
+                        log("Conflict detected – rebase aborted. User action required.")
+                    }
+                    return
+                }
+                await MainActor.run { log("Pulled remote changes") }
+
                 _ = try runGit(at: path, args: ["push"])
                 await MainActor.run { log("Pushed to remote") }
             }
@@ -159,6 +176,75 @@ public final class GitSyncService {
     public func stopPeriodicSync() {
         syncTask?.cancel()
         syncTask = nil
+    }
+
+    // MARK: - Conflict resolution
+
+    /// Keep local notes and force-push to overwrite the remote.
+    public func resolveKeepLocal() async {
+        guard let path = conflictPath else { return }
+        await MainActor.run {
+            isSyncing = true
+            log("Resolving conflict: keeping LOCAL notes")
+        }
+        defer { Task { @MainActor in isSyncing = false } }
+
+        do {
+            _ = try runGit(at: path, args: ["push", "--force-with-lease"])
+            await MainActor.run {
+                hasConflict = false
+                conflictPath = nil
+                lastError = nil
+                lastCommitDate = Date()
+                log("Force-pushed local notes to remote")
+            }
+        } catch let error as GitError {
+            await MainActor.run {
+                lastError = error.errorDescription
+                log("ERROR: \(error.errorDescription ?? "unknown")")
+            }
+        } catch {
+            await MainActor.run {
+                lastError = error.localizedDescription
+                log("ERROR: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Keep cloud notes and reset local to match the remote.
+    public func resolveKeepCloud() async {
+        guard let path = conflictPath else { return }
+        await MainActor.run {
+            isSyncing = true
+            log("Resolving conflict: keeping CLOUD notes")
+        }
+        defer { Task { @MainActor in isSyncing = false } }
+
+        do {
+            // Fetch latest from remote
+            _ = try runGit(at: path, args: ["fetch"])
+            // Find upstream branch
+            let branch = try runGit(at: path, args: ["rev-parse", "--abbrev-ref", "HEAD"])
+            let remote = remoteName ?? "origin"
+            _ = try runGit(at: path, args: ["reset", "--hard", "\(remote)/\(branch)"])
+            await MainActor.run {
+                hasConflict = false
+                conflictPath = nil
+                lastError = nil
+                lastCommitDate = Date()
+                log("Reset local to match remote")
+            }
+        } catch let error as GitError {
+            await MainActor.run {
+                lastError = error.errorDescription
+                log("ERROR: \(error.errorDescription ?? "unknown")")
+            }
+        } catch {
+            await MainActor.run {
+                lastError = error.localizedDescription
+                log("ERROR: \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - Shell helpers

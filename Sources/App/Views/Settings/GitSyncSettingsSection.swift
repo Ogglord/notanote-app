@@ -98,7 +98,39 @@ struct GitSyncSettingsSection: View {
                 .controlSize(.small)
             }
 
-            if let error = gitService.lastError {
+            if gitService.hasConflict {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .font(.system(size: 12))
+                        Text("Local and remote notes have diverged")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
+
+                    Text("Choose which version to keep:")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        Button("Keep Local Notes") {
+                            Task { await gitService.resolveKeepLocal() }
+                        }
+                        .controlSize(.small)
+                        .disabled(gitService.isSyncing)
+
+                        Button("Keep Cloud Notes") {
+                            Task { await gitService.resolveKeepCloud() }
+                        }
+                        .controlSize(.small)
+                        .disabled(gitService.isSyncing)
+                    }
+                }
+                .padding(6)
+                .background(.orange.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else if let error = gitService.lastError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
