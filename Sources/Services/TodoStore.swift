@@ -106,6 +106,16 @@ public final class TodoStore {
         }
     }
 
+    /// Update or remove the deadline of a task. Pass nil to remove.
+    public func updateDeadline(_ item: TodoItem, to deadline: Date?) {
+        do {
+            try LogSeqParser.updateTaskDeadline(in: item.filePath, at: item.lineNumber, to: deadline)
+            reload()
+        } catch {
+            print("[TodoStore] Failed to update deadline: \(error.localizedDescription)")
+        }
+    }
+
     /// Add a new TODO item to today's journal file
     public func addTodoToJournal(_ text: String) {
         let formatter = DateFormatter()
@@ -203,9 +213,10 @@ public final class TodoStore {
         return sortItems(allItems)
     }
 
-    /// Sort: active first, then by source order, then by priority (high->low), then by journal date (newest first)
+    /// Sort: active first, then by source order, then by secondary sort (user-configurable), then tiebreakers
     private static func sortItems(_ items: [TodoItem]) -> [TodoItem] {
-        items.sorted { a, b in
+        let secondarySort = SortOrder.saved
+        return items.sorted { a, b in
             // Active items before completed
             if a.marker.isActive != b.marker.isActive {
                 return a.marker.isActive
@@ -214,14 +225,50 @@ public final class TodoStore {
             if a.source != b.source {
                 return a.source.sortRank < b.source.sortRank
             }
-            // Higher priority first (high < medium < low < none in Comparable)
-            if a.priority != b.priority {
+            // Secondary sort (user-configurable)
+            switch secondarySort {
+            case .priority:
+                if a.priority != b.priority {
+                    return a.priority < b.priority
+                }
+                // Tiebreak: due date (soonest first), then journal date
+                let deadA = a.deadline ?? .distantFuture
+                let deadB = b.deadline ?? .distantFuture
+                if deadA != deadB { return deadA < deadB }
+                let dateA = a.journalDate ?? .distantPast
+                let dateB = b.journalDate ?? .distantPast
+                return dateA > dateB
+
+            case .dueDate:
+                // Items with a due date come first, sorted soonest-first
+                let deadA = a.deadline
+                let deadB = b.deadline
+                switch (deadA, deadB) {
+                case (.some(let da), .some(let db)):
+                    if da != db { return da < db }
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (.none, .none):
+                    break
+                }
+                // Tiebreak: priority, then journal date
+                if a.priority != b.priority {
+                    return a.priority < b.priority
+                }
+                let dateA = a.journalDate ?? .distantPast
+                let dateB = b.journalDate ?? .distantPast
+                return dateA > dateB
+
+            case .dateCreated:
+                // Newer journal dates first
+                let dateA = a.journalDate ?? .distantPast
+                let dateB = b.journalDate ?? .distantPast
+                if dateA != dateB { return dateA > dateB }
+                // Tiebreak: priority
                 return a.priority < b.priority
             }
-            // Newer journal dates first
-            let dateA = a.journalDate ?? .distantPast
-            let dateB = b.journalDate ?? .distantPast
-            return dateA > dateB
         }
     }
 }

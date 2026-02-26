@@ -4,9 +4,11 @@ import Models
 
 struct TodoRowView: View {
     let item: TodoItem
+    @Binding var isEditingItem: Bool
     var onToggle: () -> Void
     var onSetMarker: (TaskMarker) -> Void
     var onSetPriority: (TaskPriority) -> Void
+    var onSetDeadline: (Date?) -> Void
     var onUpdateContent: (String) -> Void
 
     @State private var isHovered = false
@@ -198,6 +200,8 @@ struct TodoRowView: View {
                 }
             }
 
+            deadlineMenu
+
             Divider()
 
             if let url = item.sourceURL {
@@ -227,11 +231,81 @@ struct TodoRowView: View {
         .help("Actions")
     }
 
+    // MARK: - Deadline Submenu
+
+    @ViewBuilder
+    private var deadlineMenu: some View {
+        Menu("Due Date") {
+            let cal = Calendar.current
+            let today = cal.startOfDay(for: Date())
+
+            // Show current deadline if set
+            if let current = item.deadline {
+                Label(deadlineLabel(for: current), systemImage: "calendar")
+                    .font(.caption)
+                Divider()
+            }
+
+            Button {
+                onSetDeadline(today)
+            } label: {
+                Label("Today", systemImage: "sun.max")
+            }
+
+            Button {
+                onSetDeadline(cal.date(byAdding: .day, value: 1, to: today))
+            } label: {
+                Label("Tomorrow", systemImage: "sunrise")
+            }
+
+            // End of this week (Friday)
+            Button {
+                let weekday = cal.component(.weekday, from: today)
+                // weekday: 1=Sun, 2=Mon, ..., 6=Fri, 7=Sat
+                let daysToFri = (6 - weekday + 7) % 7
+                let friday = cal.date(byAdding: .day, value: max(daysToFri, 1), to: today)
+                onSetDeadline(friday)
+            } label: {
+                Label("This Friday", systemImage: "calendar.badge.clock")
+            }
+
+            // Next Monday
+            Button {
+                let weekday = cal.component(.weekday, from: today)
+                let daysToMon = (9 - weekday) % 7  // next Monday
+                let monday = cal.date(byAdding: .day, value: daysToMon == 0 ? 7 : daysToMon, to: today)
+                onSetDeadline(monday)
+            } label: {
+                Label("Next Monday", systemImage: "calendar.badge.plus")
+            }
+
+            if item.deadline != nil {
+                Divider()
+                Button(role: .destructive) {
+                    onSetDeadline(nil)
+                } label: {
+                    Label("Remove Due Date", systemImage: "xmark.circle")
+                }
+            }
+        }
+    }
+
+    private func deadlineLabel(for date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "Due today" }
+        if cal.isDateInTomorrow(date) { return "Due tomorrow" }
+        if cal.isDateInYesterday(date) { return "Due yesterday" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Due \(formatter.string(from: date))"
+    }
+
     // MARK: - Editing
 
     private func startEditing() {
         editText = item.content
         isEditing = true
+        isEditingItem = true
         // Focus after a brief delay to let the view update
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             isEditFocused = true
@@ -244,10 +318,12 @@ struct TodoRowView: View {
             onUpdateContent(trimmed)
         }
         isEditing = false
+        isEditingItem = false
     }
 
     private func cancelEdit() {
         isEditing = false
+        isEditingItem = false
     }
 
     // MARK: - Helpers

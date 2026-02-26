@@ -107,7 +107,8 @@ class TodoListViewModel {
 
         // Re-sort groups so groups containing higher-priority sources appear first.
         // Preserves original order as tiebreaker for groups with the same source rank.
-        if groupMode != .bySource && groupMode != .flat {
+        // Skip for byStatus (status display order matters) and bySource/flat.
+        if groupMode != .bySource && groupMode != .flat && groupMode != .byStatus {
             let indexed = groups.enumerated().map { ($0.offset, $0.element) }
             groups = indexed.sorted { a, b in
                 let aRank = a.1.items.map(\.source.sortRank).min() ?? Int.max
@@ -152,11 +153,17 @@ class TodoListViewModel {
         }
     }
 
+    func updateDeadline(_ item: TodoItem, to deadline: Date?) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            store.updateDeadline(item, to: deadline)
+        }
+    }
+
     // MARK: - Grouping Helpers
 
     private func groupByStatus(_ items: [TodoItem]) -> [TodoGroup] {
         let grouped = Dictionary(grouping: items) { $0.marker }
-        return TaskMarker.allCases.compactMap { marker in
+        return TaskMarker.displayOrder.compactMap { marker in
             guard let group = grouped[marker], !group.isEmpty else { return nil }
             return TodoGroup(
                 id: "status-\(marker.rawValue)",

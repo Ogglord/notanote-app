@@ -25,6 +25,30 @@ public enum FilterMode: String, CaseIterable, Identifiable {
     public var displayName: String { rawValue }
 }
 
+/// Secondary sort order within each source group
+public enum SortOrder: String, CaseIterable, Identifiable {
+    case priority = "Priority"
+    case dueDate = "Due Date"
+    case dateCreated = "Date Created"
+
+    public var id: String { rawValue }
+    public var displayName: String { rawValue }
+
+    private static let key = "secondarySortOrder"
+
+    public static var saved: SortOrder {
+        guard let raw = UserDefaults.standard.string(forKey: key),
+              let order = SortOrder(rawValue: raw) else {
+            return .priority
+        }
+        return order
+    }
+
+    public static func save(_ order: SortOrder) {
+        UserDefaults.standard.set(order.rawValue, forKey: key)
+    }
+}
+
 /// A group of todos for display
 public struct TodoGroup: Identifiable {
     public let id: String

@@ -3,9 +3,11 @@ import Models
 
 struct TodoSectionView: View {
     let group: TodoGroup
+    @Binding var isEditingItem: Bool
     var onToggle: (TodoItem) -> Void
     var onSetMarker: (TodoItem, TaskMarker) -> Void
     var onSetPriority: (TodoItem, TaskPriority) -> Void
+    var onSetDeadline: (TodoItem, Date?) -> Void
     var onUpdateContent: (TodoItem, String) -> Void
     var focusedItemId: FocusState<String?>.Binding
 
@@ -34,9 +36,11 @@ struct TodoSectionView: View {
             ForEach(group.items) { item in
                 TodoRowView(
                     item: item,
+                    isEditingItem: $isEditingItem,
                     onToggle: { onToggle(item) },
                     onSetMarker: { marker in onSetMarker(item, marker) },
                     onSetPriority: { priority in onSetPriority(item, priority) },
+                    onSetDeadline: { date in onSetDeadline(item, date) },
                     onUpdateContent: { text in onUpdateContent(item, text) }
                 )
                 .focused(focusedItemId, equals: item.id)

@@ -44,4 +44,14 @@ public enum TaskMarker: String, CaseIterable, Codable, Identifiable {
     public static var activeMarkers: [TaskMarker] {
         allCases.filter { $0.isActive }
     }
+
+    /// Display order for grouping by status
+    public static let displayOrder: [TaskMarker] = [
+        .doing, .now, .todo, .later, .waiting, .done, .cancelled
+    ]
+
+    /// Sort rank for display ordering
+    public var displayRank: Int {
+        Self.displayOrder.firstIndex(of: self) ?? Self.displayOrder.count
+    }
 }

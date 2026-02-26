@@ -146,6 +146,80 @@ public enum LogSeqParser {
         try newFileContent.write(toFile: filePath, atomically: true, encoding: .utf8)
     }
 
+    /// Update or remove the deadline of a task. Pass nil to remove.
+    public static func updateTaskDeadline(in filePath: String, at lineNumber: Int, to newDeadline: Date?) throws {
+        guard let data = FileManager.default.contents(atPath: filePath),
+              let content = String(data: data, encoding: .utf8) else {
+            throw ParserError.fileNotReadable(filePath)
+        }
+
+        var lines = content.components(separatedBy: "\n")
+        guard lineNumber >= 0, lineNumber < lines.count else {
+            throw ParserError.lineOutOfRange(lineNumber)
+        }
+
+        // Full DEADLINE: <...> pattern for removal/replacement (matches the whole block)
+        let deadlineBlock = #"DEADLINE:\s*<[^>]*>"#
+
+        var line = lines[lineNumber]
+
+        // Check if deadline exists on the task line itself
+        let hasDeadlineOnLine = line.range(of: deadlineBlock, options: .regularExpression) != nil
+
+        // Check if deadline exists on the next line
+        var hasDeadlineOnNextLine = false
+        if lineNumber + 1 < lines.count {
+            hasDeadlineOnNextLine = lines[lineNumber + 1].range(of: deadlineBlock, options: .regularExpression) != nil
+        }
+
+        if let date = newDeadline {
+            // Format the new deadline
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+
+            // LogSeq also includes the day name
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "EEE"
+            dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+
+            let deadlineStr = "DEADLINE: <\(formatter.string(from: date)) \(dayFormatter.string(from: date))>"
+
+            if hasDeadlineOnLine {
+                // Replace inline
+                line = line.replacingOccurrences(of: deadlineBlock, with: deadlineStr, options: .regularExpression)
+                lines[lineNumber] = line
+            } else if hasDeadlineOnNextLine {
+                // Replace on next line
+                lines[lineNumber + 1] = lines[lineNumber + 1].replacingOccurrences(of: deadlineBlock, with: deadlineStr, options: .regularExpression)
+            } else {
+                // Append inline
+                lines[lineNumber] = line + "\n\(deadlineStr)"
+            }
+        } else {
+            // Remove deadline
+            if hasDeadlineOnLine {
+                line = line.replacingOccurrences(of: deadlineBlock, with: "", options: .regularExpression)
+                // Collapse leftover whitespace
+                while line.contains("  ") {
+                    line = line.replacingOccurrences(of: "  ", with: " ")
+                }
+                lines[lineNumber] = line.hasSuffix(" ") ? String(line.dropLast()) : line
+            } else if hasDeadlineOnNextLine {
+                // If the next line is ONLY the deadline, remove the whole line
+                let nextTrimmed = lines[lineNumber + 1].trimmingCharacters(in: .whitespaces)
+                if nextTrimmed.range(of: #"^DEADLINE:\s*<[^>]*>$"#, options: .regularExpression) != nil {
+                    lines.remove(at: lineNumber + 1)
+                } else {
+                    lines[lineNumber + 1] = lines[lineNumber + 1].replacingOccurrences(of: deadlineBlock, with: "", options: .regularExpression)
+                }
+            }
+        }
+
+        let newFileContent = lines.joined(separator: "\n")
+        try newFileContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+    }
+
     // MARK: - Error type
 
     public enum ParserError: LocalizedError {

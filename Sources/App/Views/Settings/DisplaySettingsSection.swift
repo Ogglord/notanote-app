@@ -7,6 +7,7 @@ struct DisplaySettingsSection: View {
     @AppStorage("groupMode") private var groupModeRaw: String = GroupMode.byPage.rawValue
     @AppStorage("autoRefreshInterval") private var autoRefreshInterval: Double = 2
     @AppStorage("menuBarIcon") private var menuBarIcon: String = "checkmark"
+    @AppStorage("secondarySortOrder") private var secondarySortRaw: String = SortOrder.priority.rawValue
     @AppStorage("enabledMarkers") private var enabledMarkersData: Data = {
         let allMarkers = TaskMarker.allCases.map(\.rawValue)
         return (try? JSONEncoder().encode(allMarkers)) ?? Data()
@@ -64,8 +65,8 @@ struct DisplaySettingsSection: View {
             }
         }
 
-        Section("Source Priority") {
-            Text("Drag to reorder. Items from the top source appear first.")
+        Section("Sorting") {
+            Text("Drag to reorder sources. Items from the top source appear first.")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
 
@@ -95,20 +96,49 @@ struct DisplaySettingsSection: View {
             }
             .listStyle(.bordered)
             .frame(height: 88)
-        }
 
-        Section("Visible Task Markers") {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
-                ForEach(TaskMarker.allCases) { marker in
-                    Toggle(isOn: markerBinding(for: marker)) {
-                        Label(marker.displayName, systemImage: marker.iconName)
-                            .font(.system(size: 11))
-                            .foregroundStyle(marker.color)
-                    }
-                    .toggleStyle(.checkbox)
+            Picker("Then sort by", selection: $secondarySortRaw) {
+                ForEach(SortOrder.allCases) { order in
+                    Text(order.displayName).tag(order.rawValue)
                 }
             }
         }
+
+        Section("Visible Task Markers") {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(markerRows, id: \.0) { row in
+                    HStack(spacing: 16) {
+                        ForEach(row.1) { marker in
+                            Toggle(isOn: markerBinding(for: marker)) {
+                                Label(marker.displayName, systemImage: marker.iconName)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(marker.color)
+                            }
+                            .toggleStyle(.checkbox)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        // Pad last row if it has fewer items
+                        if row.1.count < 2 {
+                            Spacer()
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Markers arranged into rows of 2 for a clean grid
+    private var markerRows: [(Int, [TaskMarker])] {
+        let markers = TaskMarker.allCases
+        var rows: [(Int, [TaskMarker])] = []
+        var i = 0
+        while i < markers.count {
+            let end = min(i + 2, markers.count)
+            rows.append((i, Array(markers[i..<end])))
+            i += 2
+        }
+        return rows
     }
 
     private func menuBarPreviewImage(named name: String) -> NSImage? {

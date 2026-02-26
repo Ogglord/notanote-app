@@ -9,6 +9,7 @@ struct MenuPopoverView: View {
     @State private var newTodoText: String = ""
     @State private var isSearchVisible: Bool = false
     @State private var isSyncLogVisible: Bool = false
+    @State private var isEditingItem: Bool = false
     @FocusState private var isAddFieldFocused: Bool
     @FocusState private var isSearchFieldFocused: Bool
     @FocusState private var focusedItemId: String?
@@ -51,9 +52,11 @@ struct MenuPopoverView: View {
                             ForEach(viewModel.filteredItems) { item in
                                 TodoRowView(
                                     item: item,
+                                    isEditingItem: $isEditingItem,
                                     onToggle: { viewModel.toggleTask(item) },
                                     onSetMarker: { marker in viewModel.setMarker(item, to: marker) },
                                     onSetPriority: { priority in viewModel.updatePriority(item, to: priority) },
+                                    onSetDeadline: { date in viewModel.updateDeadline(item, to: date) },
                                     onUpdateContent: { text in viewModel.updateContent(item, newContent: text) }
                                 )
                                 .focused($focusedItemId, equals: item.id)
@@ -62,9 +65,11 @@ struct MenuPopoverView: View {
                             ForEach(viewModel.groupedItems) { group in
                                 TodoSectionView(
                                     group: group,
+                                    isEditingItem: $isEditingItem,
                                     onToggle: { item in viewModel.toggleTask(item) },
                                     onSetMarker: { item, marker in viewModel.setMarker(item, to: marker) },
                                     onSetPriority: { item, priority in viewModel.updatePriority(item, to: priority) },
+                                    onSetDeadline: { item, date in viewModel.updateDeadline(item, to: date) },
                                     onUpdateContent: { item, text in viewModel.updateContent(item, newContent: text) },
                                     focusedItemId: $focusedItemId
                                 )
@@ -102,17 +107,26 @@ struct MenuPopoverView: View {
                 }
             }
         }
-        .onKeyPress(.upArrow) { moveFocus(direction: -1); return .handled }
-        .onKeyPress(.downArrow) { moveFocus(direction: 1); return .handled }
+        .onKeyPress(.upArrow) {
+            guard !isEditingItem else { return .ignored }
+            moveFocus(direction: -1); return .handled
+        }
+        .onKeyPress(.downArrow) {
+            guard !isEditingItem else { return .ignored }
+            moveFocus(direction: 1); return .handled
+        }
         .onKeyPress(.return) {
-            guard !isAddFieldFocused && !isSearchFieldFocused else { return .ignored }
+            guard !isAddFieldFocused && !isSearchFieldFocused && !isEditingItem else { return .ignored }
             toggleFocusedItem(); return .handled
         }
         .onKeyPress(.space) {
-            guard !isAddFieldFocused && !isSearchFieldFocused else { return .ignored }
+            guard !isAddFieldFocused && !isSearchFieldFocused && !isEditingItem else { return .ignored }
             toggleFocusedItem(); return .handled
         }
-        .onKeyPress(.escape) { handleEscape(); return .handled }
+        .onKeyPress(.escape) {
+            guard !isEditingItem else { return .ignored }
+            handleEscape(); return .handled
+        }
         // Hidden buttons to anchor keyboard shortcuts
         .background {
             Group {

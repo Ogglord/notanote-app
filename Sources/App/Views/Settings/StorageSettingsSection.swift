@@ -2,7 +2,17 @@ import SwiftUI
 
 struct StorageSettingsSection: View {
     @AppStorage("graphPath") private var graphPath: String = ""
-    @State private var graphPathValid: Bool = false
+
+    private var graphPathValid: Bool {
+        guard !graphPath.isEmpty else { return false }
+        let fm = FileManager.default
+        let journalsPath = (graphPath as NSString).appendingPathComponent("journals")
+        let pagesPath = (graphPath as NSString).appendingPathComponent("pages")
+        var isDir: ObjCBool = false
+        let hasJournals = fm.fileExists(atPath: journalsPath, isDirectory: &isDir) && isDir.boolValue
+        let hasPages = fm.fileExists(atPath: pagesPath, isDirectory: &isDir) && isDir.boolValue
+        return hasJournals || hasPages
+    }
 
     private var isStandaloneMode: Bool {
         graphPath.isEmpty
@@ -92,21 +102,5 @@ struct StorageSettingsSection: View {
         if panel.runModal() == .OK, let url = panel.url {
             graphPath = url.path
         }
-    }
-
-    private func validatePath() {
-        guard !graphPath.isEmpty else {
-            graphPathValid = false
-            return
-        }
-        let journalsPath = (graphPath as NSString).appendingPathComponent("journals")
-        var isDir: ObjCBool = false
-        graphPathValid = FileManager.default.fileExists(atPath: journalsPath, isDirectory: &isDir) && isDir.boolValue
-    }
-}
-
-extension StorageSettingsSection {
-    func onAppear() {
-        validatePath()
     }
 }
