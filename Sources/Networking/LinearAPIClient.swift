@@ -75,6 +75,70 @@ public final class LinearAPIClient: Sendable {
         return decoded.data?.viewer.assignedIssues.nodes ?? []
     }
 
+    /// Fetch the most recent inbox notifications for the authenticated user.
+    public func fetchNotifications(first: Int = 10) async throws -> [LinearNotification] {
+        let query = """
+        {
+          notifications(first: \(first), orderBy: createdAt) {
+            nodes {
+              id
+              type
+              readAt
+              createdAt
+              ... on IssueNotification {
+                issue {
+                  id
+                  identifier
+                  title
+                  url
+                }
+              }
+            }
+          }
+        }
+        """
+
+        let body: [String: Any] = ["query": query]
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+
+        var request = URLRequest(url: Self.endpoint)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let (data, response) = try await performRequest(request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.networkError(underlying: URLError(.badServerResponse))
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            break
+        case 401:
+            throw APIError.unauthorized
+        case 429:
+            throw APIError.rateLimited
+        default:
+            let body = String(data: data, encoding: .utf8)
+            throw APIError.serverError(statusCode: httpResponse.statusCode, body: body)
+        }
+
+        let decoded: LinearNotificationsResponse
+        do {
+            decoded = try JSONDecoder().decode(LinearNotificationsResponse.self, from: data)
+        } catch {
+            throw APIError.decodingError(underlying: error)
+        }
+
+        if let errors = decoded.errors, !errors.isEmpty {
+            throw APIError.graphQLErrors(errors.map(\.message))
+        }
+
+        return decoded.data?.notifications.nodes ?? []
+    }
+
     private func performRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
             return try await session.data(for: request)

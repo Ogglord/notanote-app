@@ -15,6 +15,7 @@ public final class APISyncService {
     public private(set) var lastPylonSync: Date?
     public private(set) var lastLinearCount: Int = 0
     public private(set) var lastPylonCount: Int = 0
+    public private(set) var lastNotificationSync: Date?
     public private(set) var lastError: String?
     public private(set) var syncLog: [String] = []
 
@@ -52,6 +53,7 @@ public final class APISyncService {
     // MARK: - Private
 
     private var digestWriter: DigestWriter?
+    private var notificationService: NotificationService?
     private var syncTask: Task<Void, Never>?
 
     // MARK: - Init
@@ -62,9 +64,10 @@ public final class APISyncService {
         self.syncIntervalMinutes = UserDefaults.standard.object(forKey: "api.syncInterval") as? Double ?? 15.0
     }
 
-    /// Provide the digest writer implementation (call this from the App layer).
-    public func configure(digestWriter: DigestWriter) {
+    /// Provide the digest writer and notification service (call this from the App layer).
+    public func configure(digestWriter: DigestWriter, notificationService: NotificationService? = nil) {
         self.digestWriter = digestWriter
+        self.notificationService = notificationService
     }
 
     // MARK: - Sync All
@@ -106,6 +109,16 @@ public final class APISyncService {
                 lastError = existing + " | " + error.localizedDescription
             } else {
                 lastError = error.localizedDescription
+            }
+        }
+
+        // Notification sync (Linear inbox + new Pylon issue detection)
+        let isNotificationsOn = UserDefaults.standard.object(forKey: "notifications.enabled") as? Bool ?? true
+        if isNotificationsOn {
+            do {
+                try await syncNotifications(linearEnabled: isLinearOn, pylonEnabled: isPylonOn)
+            } catch {
+                log("Notification sync failed: \(error.localizedDescription)")
             }
         }
 
@@ -213,6 +226,127 @@ public final class APISyncService {
         lastPylonSync = Date()
         lastPylonCount = items.count
         log("Pylon: sync complete")
+    }
+
+    // MARK: - Notification Sync
+
+    public func syncNotifications(linearEnabled: Bool, pylonEnabled: Bool) async throws {
+        guard let writer = digestWriter, let notifService = notificationService else { return }
+
+        var allDigestItems: [DigestItem] = []
+        var allPanelItems: [NotificationItem] = []
+        var nativeItems: [(title: String, body: String, id: String)] = []
+
+        // 1. Fetch Linear inbox notifications
+        if linearEnabled {
+            if let apiKey = KeychainHelper.loadToken(for: "linear-api-token") {
+                log("Notifications: fetching Linear inbox...")
+                let client = LinearAPIClient(apiKey: apiKey)
+                let notifications = try await client.fetchNotifications(first: 10)
+                log("Notifications: fetched \(notifications.count) inbox items")
+
+                let newItems = notifService.processLinearNotifications(notifications)
+
+                // Build digest + panel items for ALL inbox entries
+                for n in notifications {
+                    guard let issue = n.issue else { continue }
+                    let isUnread = n.readAt == nil
+
+                    allDigestItems.append(DigestItem(
+                        text: "[\(humanReadableType(n.type))] \(issue.title)",
+                        sourceId: n.id,
+                        url: issue.url,
+                        identifier: issue.identifier,
+                        priority: nil,
+                        status: isUnread ? "TODO" : "DONE"
+                    ))
+
+                    allPanelItems.append(NotificationItem(
+                        id: n.id,
+                        source: "linear",
+                        type: humanReadableType(n.type),
+                        title: issue.title,
+                        url: issue.url,
+                        identifier: issue.identifier,
+                        isUnread: isUnread,
+                        createdAt: n.createdAt
+                    ))
+                }
+
+                // Queue native notifications for new items only
+                for n in newItems {
+                    guard let issue = n.issue else { continue }
+                    nativeItems.append((
+                        title: "Linear: \(humanReadableType(n.type))",
+                        body: "\(issue.identifier) \(issue.title)",
+                        id: n.id
+                    ))
+                }
+            }
+        }
+
+        // 2. Detect new Pylon issues
+        if pylonEnabled {
+            if let apiKey = KeychainHelper.loadToken(for: "pylon-api-token") {
+                log("Notifications: checking for new Pylon issues...")
+                let client = PylonAPIClient(apiKey: apiKey)
+                let allIssues = try await client.fetchAllRecentIssues()
+                let validStates: Set<String> = ["new", "waiting_on_you"]
+                let issues = allIssues.filter { validStates.contains($0.state) }
+
+                let newIssues = notifService.processNewPylonIssues(issues)
+                log("Notifications: \(newIssues.count) new Pylon issues")
+
+                for issue in newIssues {
+                    nativeItems.append((
+                        title: "Pylon: New Issue",
+                        body: "#\(issue.number) \(issue.title)",
+                        id: issue.id
+                    ))
+
+                    allPanelItems.append(NotificationItem(
+                        id: issue.id,
+                        source: "pylon",
+                        type: "New Issue",
+                        title: issue.title,
+                        url: "https://app.usepylon.com/issues?issueNumber=\(issue.number)",
+                        identifier: "#\(issue.number)",
+                        isUnread: true,
+                        createdAt: nil
+                    ))
+                }
+            }
+        }
+
+        // 3. Write notifications digest
+        if !allDigestItems.isEmpty {
+            log("Notifications: writing \(allDigestItems.count) items to notifications.md")
+            try writer.writeNotifications(items: allDigestItems)
+        }
+
+        // 4. Update in-memory items (filters dismissed)
+        notifService.updateItems(allPanelItems)
+
+        // 5. Deliver native notifications
+        if !nativeItems.isEmpty {
+            log("Notifications: delivering \(nativeItems.count) native notifications")
+            notifService.deliverNativeNotifications(items: nativeItems)
+        }
+
+        lastNotificationSync = Date()
+        log("Notifications: sync complete")
+    }
+
+    private func humanReadableType(_ type: String) -> String {
+        switch type {
+        case "issueAssignment": return "Assigned"
+        case "issueComment": return "Comment"
+        case "issueMention": return "Mention"
+        case "issueStatusChanged": return "Status Changed"
+        case "issuePriorityChanged": return "Priority Changed"
+        case "issueNewComment": return "New Comment"
+        default: return type
+        }
     }
 
     // MARK: - Periodic Sync

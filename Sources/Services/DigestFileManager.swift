@@ -109,6 +109,26 @@ public struct DigestFileManager {
         return line
     }
 
+    /// Resolve the file path for the notifications digest page (pages/notifications.md)
+    public func notificationsFilePath() -> String {
+        let pagesDir = (graphPath as NSString).appendingPathComponent("pages")
+        return (pagesDir as NSString).appendingPathComponent("notifications.md")
+    }
+
+    /// Replace the entire notifications digest file with the provided lines
+    public func writeNotifications(lines: [String]) {
+        let filePath = notificationsFilePath()
+        let fm = FileManager.default
+        let pagesDir = (graphPath as NSString).appendingPathComponent("pages")
+
+        if !fm.fileExists(atPath: pagesDir) {
+            try? fm.createDirectory(atPath: pagesDir, withIntermediateDirectories: true)
+        }
+
+        let content = lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n")
+        try? content.write(toFile: filePath, atomically: true, encoding: .utf8)
+    }
+
     /// Replace the entire contents of a source digest file with the provided lines
     public func syncItems(source: String, lines: [String]) {
         let filePath = digestFilePath(for: source)

@@ -6,6 +6,7 @@ import Networking
 enum SettingsPage: String, CaseIterable, Identifiable {
     case general
     case appearance
+    case notifications
     case linear
     case pylon
     case gitSync
@@ -14,31 +15,34 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general:    return "General"
-        case .appearance: return "Appearance"
-        case .linear:     return "Linear"
-        case .pylon:      return "Pylon"
-        case .gitSync:    return "Git Sync"
+        case .general:       return "General"
+        case .appearance:    return "Appearance"
+        case .notifications: return "Notifications"
+        case .linear:        return "Linear"
+        case .pylon:         return "Pylon"
+        case .gitSync:       return "Git Sync"
         }
     }
 
     var icon: String {
         switch self {
-        case .general:    return "gearshape"
-        case .appearance: return "paintbrush"
-        case .linear:     return "line.3.horizontal.decrease.circle"
-        case .pylon:      return "headset.circle"
-        case .gitSync:    return "arrow.triangle.2.circlepath"
+        case .general:       return "gearshape"
+        case .appearance:    return "paintbrush"
+        case .notifications: return "bell.badge"
+        case .linear:        return "line.3.horizontal.decrease.circle"
+        case .pylon:         return "headset.circle"
+        case .gitSync:       return "arrow.triangle.2.circlepath"
         }
     }
 
     var color: Color {
         switch self {
-        case .general:    return .gray
-        case .appearance: return .purple
-        case .linear:     return .indigo
-        case .pylon:      return .teal
-        case .gitSync:    return .orange
+        case .general:       return .gray
+        case .appearance:    return .purple
+        case .notifications: return .red
+        case .linear:        return .indigo
+        case .pylon:         return .teal
+        case .gitSync:       return .orange
         }
     }
 }
@@ -85,6 +89,11 @@ struct SettingsView: View {
         case .appearance:
             Form {
                 DisplaySettingsSection()
+            }
+            .formStyle(.grouped)
+        case .notifications:
+            Form {
+                NotificationSettingsSection()
             }
             .formStyle(.grouped)
         case .linear:

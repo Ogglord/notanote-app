@@ -203,7 +203,7 @@ public final class TodoStore {
         for dir in directories {
             let dirPath = (graphPath as NSString).appendingPathComponent(dir)
             guard let files = try? fm.contentsOfDirectory(atPath: dirPath) else { continue }
-            for file in files where file.hasSuffix(".md") {
+            for file in files where file.hasSuffix(".md") && file != "notifications.md" {
                 let fullPath = (dirPath as NSString).appendingPathComponent(file)
                 let items = LogSeqParser.parseFile(at: fullPath)
                 allItems.append(contentsOf: items)
