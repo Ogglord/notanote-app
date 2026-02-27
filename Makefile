@@ -28,10 +28,9 @@ bundle: build
 	mkdir -p "$(BUNDLE_DIR)/Contents/Resources"
 	cp $(BUILD_DIR)/$(BINARY_NAME) "$(BUNDLE_DIR)/Contents/MacOS/"
 	cp Sources/App/Resources/Info.plist "$(BUNDLE_DIR)/Contents/"
-	@if [ -f build/AppIcon.icns ]; then \
-		cp build/AppIcon.icns "$(BUNDLE_DIR)/Contents/Resources/"; \
-	fi
+	cp Sources/App/Resources/AppIcon.icns "$(BUNDLE_DIR)/Contents/Resources/"
 	echo -n "APPL????" > "$(BUNDLE_DIR)/Contents/PkgInfo"
+	codesign --force --sign - --entitlements Sources/App/Resources/NotaNote.entitlements "$(BUNDLE_DIR)"
 
 installer: bundle
 	@echo "Creating DMG installer..."
