@@ -52,6 +52,7 @@ class TodoListViewModel {
                 let cal = Calendar.current
                 if let journal = item.journalDate, cal.isDateInToday(journal) { return true }
                 if let scheduled = item.scheduledDate, cal.isDateInToday(scheduled) { return true }
+                if let deadline = item.deadline, cal.isDateInToday(deadline) { return true }
                 return false
             }
         case .overdue:

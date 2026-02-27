@@ -386,6 +386,12 @@ struct MenuPopoverView: View {
             // Settings menu
             Menu {
                 Button {
+                    NotificationCenter.default.post(name: .apiSyncRequested, object: nil)
+                } label: {
+                    Label("Sync All", systemImage: "arrow.triangle.2.circlepath")
+                }
+
+                Button {
                     viewModel.store.reload()
                 } label: {
                     Label("Reload Data", systemImage: "arrow.clockwise")
