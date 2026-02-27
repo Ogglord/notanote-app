@@ -13,7 +13,8 @@ Sources/
     |
   Networking/      (library, depends: Models)
     |-- KeychainHelper, LinearAPIClient, PylonAPIClient
-    |-- APISyncService, DigestWriter protocol, SyncModels
+    |-- APISyncService, NotificationService
+    |-- DigestWriter protocol, SyncModels
     |
   MCP/             (library, depends: Models, Services, Networking)
     |-- MCPServer, JSONRPCTypes
@@ -77,6 +78,25 @@ Linear/Pylon APIs
   FileWatcher detects change --> TodoStore.reload()
 ```
 
+## Notification Flow
+
+```
+Linear Inbox API (notifications query) / Pylon new-issue detection
+       |
+  APISyncService.syncNotifications() (runs after main sync)
+       |
+  NotificationService (tracks seen IDs in UserDefaults, detects new items)
+       |
+  ├── DigestWriter.writeNotifications() --> pages/notifications.md
+  ├── UNUserNotificationCenter (native macOS banners via NotificationDelegate)
+  └── unreadCount --> menu bar badge indicator (dot)
+```
+
+- Linear inbox: fetches last 10 notifications via `notifications` GraphQL query
+- Pylon: compares current issues against previously seen IDs
+- Seen IDs capped at 200 per source to prevent unbounded UserDefaults growth
+- NotificationDelegate enables banners even when app is in foreground
+
 ## MCP Server
 
 Runs as headless process via `--mcp` flag. JSON-RPC 2.0 over stdin/stdout.
@@ -111,5 +131,9 @@ Runs as headless process via `--mcp` flag. JSON-RPC 2.0 over stdin/stdout.
 | `git.enabled` | Git sync toggle |
 | `git.syncInterval` | Git sync interval (minutes) |
 | `git.commitTemplate` | Commit message template |
+| `notifications.enabled` | Notification sync toggle |
+| `notifications.native` | Native macOS notification banners toggle |
+| `notifications.seenLinearIds` | Previously seen Linear notification IDs |
+| `notifications.seenPylonIds` | Previously seen Pylon issue IDs |
 
 API tokens stored in macOS Keychain (service: `com.notanote.api-tokens`).

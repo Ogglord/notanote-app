@@ -99,6 +99,36 @@ public struct DigestItem {
     }
 }
 
+// MARK: - Linear Notifications (Inbox) Response Structures
+
+public struct LinearNotificationsResponse: Codable {
+    public let data: NotificationsData?
+    public let errors: [LinearGraphQLError]?
+
+    public struct NotificationsData: Codable {
+        public let notifications: NotificationConnection
+    }
+
+    public struct NotificationConnection: Codable {
+        public let nodes: [LinearNotification]
+    }
+}
+
+public struct LinearNotification: Codable, Identifiable {
+    public let id: String
+    public let type: String
+    public let readAt: String?
+    public let createdAt: String
+    public let issue: NotificationIssue?
+
+    public struct NotificationIssue: Codable {
+        public let id: String
+        public let identifier: String
+        public let title: String
+        public let url: String
+    }
+}
+
 // MARK: - API Errors
 
 public enum APIError: LocalizedError {

@@ -9,4 +9,8 @@ public protocol DigestWriter {
     func digestFilePath(for source: String) -> String
     /// Return the set of source tracking UUIDs already present in a digest file.
     func existingSourceIds(in filePath: String, for source: String) -> Set<String>
+    /// Replace the entire notifications digest file with the given items.
+    func writeNotifications(items: [DigestItem]) throws
+    /// Return the file path for the notifications digest file.
+    func notificationsFilePath() -> String
 }

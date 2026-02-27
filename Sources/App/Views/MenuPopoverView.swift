@@ -6,9 +6,11 @@ import Networking
 struct MenuPopoverView: View {
     @Bindable var viewModel: TodoListViewModel
     var syncService: APISyncService
+    var notificationService: NotificationService
     @State private var newTodoText: String = ""
     @State private var isSearchVisible: Bool = false
     @State private var isSyncLogVisible: Bool = false
+    @State private var isNotificationPanelVisible: Bool = false
     @State private var isEditingItem: Bool = false
     @FocusState private var isAddFieldFocused: Bool
     @FocusState private var isSearchFieldFocused: Bool
@@ -18,6 +20,17 @@ struct MenuPopoverView: View {
         VStack(spacing: 0) {
             // Add new todo
             addTodoBar
+
+            // Notification banner — shown when there are items
+            if !notificationService.items.isEmpty {
+                notificationBanner
+            }
+
+            // Notification panel — expandable
+            if isNotificationPanelVisible && !notificationService.items.isEmpty {
+                notificationPanel
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             // Filter bar
             FilterBarView(
@@ -182,6 +195,121 @@ struct MenuPopoverView: View {
         .padding(.vertical, 10)
     }
 
+    // MARK: - Notification Banner
+
+    private var notificationBanner: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isNotificationPanelVisible.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+
+                Text("\(notificationService.items.count) notification\(notificationService.items.count == 1 ? "" : "s")")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                if isNotificationPanelVisible {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            notificationService.dismissAll()
+                        }
+                    } label: {
+                        Text("Clear all")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Image(systemName: isNotificationPanelVisible ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.orange.opacity(0.08))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Notification Panel
+
+    private var notificationPanel: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(notificationService.items) { item in
+                    notificationRow(item)
+                }
+            }
+        }
+        .frame(maxHeight: 200)
+        .background(.black.opacity(0.02))
+    }
+
+    private func notificationRow(_ item: NotificationItem) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            // Source indicator
+            Circle()
+                .fill(item.source == "linear" ? Color.indigo : Color.teal)
+                .frame(width: 6, height: 6)
+                .padding(.top, 5)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(item.type)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+
+                    if let id = item.identifier {
+                        Text(id)
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                if let url = item.url, let link = URL(string: url) {
+                    Link(destination: link) {
+                        Text(item.title)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                } else {
+                    Text(item.title)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            // Dismiss button
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    notificationService.dismiss(item)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Dismiss")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(item.isUnread ? Color.orange.opacity(0.04) : Color.clear)
+    }
+
     // MARK: - Search Bar
 
     private var searchBar: some View {
@@ -226,7 +354,7 @@ struct MenuPopoverView: View {
 
             // Sync status — clickable to toggle log
             if syncService.isSyncing || syncService.lastSyncDate != nil || syncService.lastError != nil {
-                Text("·")
+                Text("\u{00B7}")
                     .font(.system(size: 10))
                     .foregroundStyle(.quaternary)
 
@@ -302,7 +430,7 @@ struct MenuPopoverView: View {
                     .controlSize(.mini)
                     .scaleEffect(0.6)
                     .frame(width: 10, height: 10)
-                Text("Syncing…")
+                Text("Syncing\u{2026}")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -339,7 +467,7 @@ struct MenuPopoverView: View {
         if parts.isEmpty {
             return ago
         }
-        return "\(ago) · \(parts.joined(separator: ", "))"
+        return "\(ago) \u{00B7} \(parts.joined(separator: ", "))"
     }
 
     private func relativeTime(since date: Date) -> String {
@@ -408,7 +536,7 @@ struct MenuPopoverView: View {
     private func logEntryColor(_ entry: String) -> Color {
         if entry.contains("ERROR") || entry.contains("failed") {
             return .red
-        } else if entry.contains("✗") {
+        } else if entry.contains("\u{2717}") {
             return .orange
         } else {
             return .secondary
